@@ -1,11 +1,13 @@
+import asyncio
+
 import example_utils
 
 from hyperliquid.utils import constants
 from hyperliquid.utils.signing import SEND_ASSET_SIGN_TYPES, get_timestamp_ms, sign_multi_sig_user_signed_action_payload
 
 
-def main():
-    address, info, exchange = example_utils.setup(constants.TESTNET_API_URL, skip_ws=True)
+async def main():
+    address, info, exchange = await example_utils.setup(constants.TESTNET_API_URL, skip_ws=True)
     multi_sig_wallets = example_utils.setup_multi_sig_wallets()
 
     # The outer signer is required to be an authorized user or an agent of the authorized user of the multi-sig user.
@@ -48,9 +50,9 @@ def main():
 
     # Execute the multi-sig action with all collected signatures
     # This will only succeed if enough valid signatures are provided
-    multi_sig_result = exchange.multi_sig(multi_sig_user, action, signatures, timestamp)
+    multi_sig_result = await exchange.multi_sig(multi_sig_user, action, signatures, timestamp)
     print(multi_sig_result)
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

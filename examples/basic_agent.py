@@ -1,3 +1,5 @@
+import asyncio
+
 import eth_account
 import example_utils
 from eth_account.signers.local import LocalAccount
@@ -6,7 +8,7 @@ from hyperliquid.exchange import Exchange
 from hyperliquid.utils import constants
 
 
-def main():
+async def main():
     """
     Sets up an environment for testing purposes by creating an agent that can place trades on behalf of the account.
     The agent does not have permission to transfer or withdraw funds. You can run this part on a separate machine or
@@ -19,14 +21,14 @@ def main():
     """
 
     # Set up the environment (exchange, account info, etc.) for testing purposes.
-    address, info, exchange = example_utils.setup(constants.TESTNET_API_URL, skip_ws=True)
+    address, info, exchange = await example_utils.setup(constants.MAINNET_API_URL, skip_ws=True)
 
     # Ensure that the wallet address and account address are the same.
     # If these are not the same then an agent will be approved for the wallet address instead of the account address, and the order will fail.
     if address != exchange.wallet.address:
         raise Exception("You should not create an agent using an agent")
 
-    approve_result, agent_key = exchange.approve_agent()
+    approve_result, agent_key = await exchange.approve_agent()
 
     # Check if the agent approval was successful. If not, log the error and return.
     # This prevents proceeding with an agent that isn't properly authorized.
@@ -41,12 +43,12 @@ def main():
 
     # Create a new exchange instance for the agent, providing it with the agent's account information and exchange URL.
     # This exchange object will be used for placing orders and interacting with the Hyperliquid API.
-    agent_exchange = Exchange(agent_account, constants.TESTNET_API_URL, account_address=address)
+    agent_exchange = await Exchange.create(agent_account, constants.TESTNET_API_URL, account_address=address)
 
     # Place a test order with the agent (setting a very low price so that it rests in the order book).
     # The order is placed as a "limit" order with the time-in-force set to "Good till Cancelled" (GTC).
     # This allows us to test placing an order without immediately executing it.
-    order_result = agent_exchange.order("ETH", True, 0.2, 1000, {"limit": {"tif": "Gtc"}})
+    order_result = await agent_exchange.order("ETH", True, 0.2, 1000, {"limit": {"tif": "Gtc"}})
     print(order_result)
 
     # If the order was placed successfully and the status is "resting," we attempt to cancel it.
@@ -54,13 +56,13 @@ def main():
     if order_result["status"] == "ok":
         status = order_result["response"]["data"]["statuses"][0]
         if "resting" in status:
-            cancel_result = agent_exchange.cancel("ETH", status["resting"]["oid"])
+            cancel_result = await agent_exchange.cancel("ETH", status["resting"]["oid"])
             print(cancel_result)
 
     # Create an extra agent that persists beyond the current session.
     # The "persist" argument ensures that the agent remains available for future interactions and doesn't require re-approval each time.
 
-    approve_result, extra_agent_key = exchange.approve_agent("persist")
+    approve_result, extra_agent_key = await exchange.approve_agent("persist")
 
     # Check if the extra agent was successfully approved.
     if approve_result["status"] != "ok":
@@ -69,12 +71,12 @@ def main():
 
     # Create the extra agent account using its private key and the same process as above.
     extra_agent_account: LocalAccount = eth_account.Account.from_key(extra_agent_key)
-    extra_agent_exchange = Exchange(extra_agent_account, constants.TESTNET_API_URL, account_address=address)
+    extra_agent_exchange = await Exchange.create(extra_agent_account, constants.TESTNET_API_URL, account_address=address)
     print("Running with extra agent address:", extra_agent_account.address)
 
     # Place an order with the extra agent using the same process as the original agent.
     print("Placing order with extra agent")
-    order_result = extra_agent_exchange.order("ETH", True, 0.2, 1000, {"limit": {"tif": "Gtc"}})
+    order_result = await extra_agent_exchange.order("ETH", True, 0.2, 1000, {"limit": {"tif": "Gtc"}})
     print(order_result)
 
     # If the extra agent's order is placed successfully, attempt to cancel it.
@@ -82,9 +84,9 @@ def main():
         status = order_result["response"]["data"]["statuses"][0]
         if "resting" in status:
             print("Canceling order with extra agent")
-            cancel_result = extra_agent_exchange.cancel("ETH", status["resting"]["oid"])
+            cancel_result = await extra_agent_exchange.cancel("ETH", status["resting"]["oid"])
             print(cancel_result)
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

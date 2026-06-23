@@ -1,12 +1,12 @@
-import time
+import asyncio
 
 import example_utils
 
 from hyperliquid.utils import constants
 
 
-def main():
-    address, info, exchange = example_utils.setup(constants.TESTNET_API_URL, skip_ws=True)
+async def main():
+    address, info, exchange = await example_utils.setup(constants.TESTNET_API_URL, skip_ws=True)
 
     coin = "ETH"
     is_buy = False
@@ -14,7 +14,7 @@ def main():
 
     print(f"We try to Market {'Buy' if is_buy else 'Sell'} {sz} {coin}.")
 
-    order_result = exchange.market_open(coin, is_buy, sz, None, 0.01)
+    order_result = await exchange.market_open(coin, is_buy, sz, None, 0.01)
     if order_result["status"] == "ok":
         for status in order_result["response"]["data"]["statuses"]:
             try:
@@ -24,10 +24,10 @@ def main():
                 print(f'Error: {status["error"]}')
 
         print("We wait for 2s before closing")
-        time.sleep(2)
+        await asyncio.sleep(2)
 
         print(f"We try to Market Close all {coin}.")
-        order_result = exchange.market_close(coin)
+        order_result = await exchange.market_close(coin)
         if order_result["status"] == "ok":
             for status in order_result["response"]["data"]["statuses"]:
                 try:
@@ -38,4 +38,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

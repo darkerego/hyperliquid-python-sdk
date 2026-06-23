@@ -1,3 +1,5 @@
+import asyncio
+
 # Example script to register a validator
 # See https://github.com/hyperliquid-dex/node?tab=readme-ov-file#join-network for spec
 #
@@ -12,8 +14,8 @@ ACTION = ""
 DUMMY_SIGNER = "0x0000000000000000000000000000000000000001"
 
 
-def main():
-    address, info, exchange = example_utils.setup(constants.TESTNET_API_URL, skip_ws=True)
+async def main():
+    address, info, exchange = await example_utils.setup(constants.TESTNET_API_URL, skip_ws=True)
 
     if ACTION == "Register":
         node_ip = "1.2.3.4"
@@ -24,7 +26,7 @@ def main():
         signer = DUMMY_SIGNER
         unjailed = False
         initial_wei = 100000
-        register_result = exchange.c_validator_register(
+        register_result = await exchange.c_validator_register(
             node_ip,
             name,
             description,
@@ -43,7 +45,7 @@ def main():
         disable_delegations = None
         commission_bps = None
         signer = None
-        change_profile_result = exchange.c_validator_change_profile(
+        change_profile_result = await exchange.c_validator_change_profile(
             node_ip,
             name,
             description,
@@ -54,11 +56,11 @@ def main():
         )
         print("change profile result", change_profile_result)
     elif ACTION == "Unregister":
-        unregister_result = exchange.c_validator_unregister()
+        unregister_result = await exchange.c_validator_unregister()
         print("unregister result", unregister_result)
     else:
         raise ValueError("Invalid action specified")
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

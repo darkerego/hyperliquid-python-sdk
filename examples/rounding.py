@@ -10,6 +10,7 @@ Prices are precise to the lesser of 5 significant figures or 6 decimals.
 You can find the szDecimals for an asset by making a meta request to the info endpoint
 """
 
+import asyncio
 import json
 
 import example_utils
@@ -17,11 +18,11 @@ import example_utils
 from hyperliquid.utils import constants
 
 
-def main():
-    address, info, exchange = example_utils.setup(constants.TESTNET_API_URL, skip_ws=True)
+async def main():
+    address, info, exchange = await example_utils.setup(constants.TESTNET_API_URL, skip_ws=True)
 
     # Get the exchange's metadata and print it out
-    meta = info.meta()
+    meta = await info.meta()
     print(json.dumps(meta, indent=2))
 
     # create a szDecimals map
@@ -47,16 +48,16 @@ def main():
     sz = round(sz, sz_decimals[coin])
 
     print(f"placing order with px {px} and sz {sz}")
-    order_result = exchange.order(coin, True, sz, px, {"limit": {"tif": "Gtc"}})
+    order_result = await exchange.order(coin, True, sz, px, {"limit": {"tif": "Gtc"}})
     print(order_result)
 
     # Cancel the order
     if order_result["status"] == "ok":
         status = order_result["response"]["data"]["statuses"][0]
         if "resting" in status:
-            cancel_result = exchange.cancel(coin, status["resting"]["oid"])
+            cancel_result = await exchange.cancel(coin, status["resting"]["oid"])
             print(cancel_result)
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

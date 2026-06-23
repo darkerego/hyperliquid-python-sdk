@@ -1,4 +1,4 @@
-# hyperliquid-python-sdk
+# hyperliquid-python-sdk-async
 
 <div align="center">
 
@@ -10,13 +10,13 @@
 [![Semantic Versions](https://img.shields.io/badge/%20%20%F0%9F%93%A6%F0%9F%9A%80-semantic--versions-e10079.svg)](https://github.com/hyperliquid-dex/hyperliquid-python-sdk/releases)
 [![License](https://img.shields.io/pypi/l/hyperliquid-python-sdk)](https://github.com/hyperliquid-dex/hyperliquid-python-sdk/blob/master/LICENSE.md)
 
-SDK for Hyperliquid API trading with Python.
+SDK for Hyperliquid API trading with Python. Made Asynchronous by DarkerEgo
 
 </div>
 
 ## Installation
 ```bash
-pip install hyperliquid-python-sdk
+pip install hyperliquid-python-sdk-async
 ```
 ## Configuration 
 
@@ -29,12 +29,19 @@ Generate and authorize a new API private key on https://app.hyperliquid.xyz/API,
 
 ## Usage Examples
 ```python
+import asyncio
+
 from hyperliquid.info import Info
 from hyperliquid.utils import constants
 
-info = Info(constants.TESTNET_API_URL, skip_ws=True)
-user_state = info.user_state("0xcd5051944f780a621ee62e39e493c489668acf4d")
-print(user_state)
+
+async def main():
+    async with Info(constants.TESTNET_API_URL, skip_ws=True) as info:
+        user_state = await info.user_state("0xcd5051944f780a621ee62e39e493c489668acf4d")
+        print(user_state)
+
+
+asyncio.run(main())
 ```
 See [examples](examples) for more complete examples. You can also checkout the repo and run any of the examples after configuring your private key e.g. 
 ```bash

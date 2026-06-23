@@ -1,3 +1,5 @@
+import asyncio
+
 import json
 
 import example_utils
@@ -5,11 +7,11 @@ import example_utils
 from hyperliquid.utils import constants
 
 
-def main():
-    address, info, exchange = example_utils.setup(base_url=constants.TESTNET_API_URL, skip_ws=True)
+async def main():
+    address, info, exchange = await example_utils.setup(base_url=constants.TESTNET_API_URL, skip_ws=True)
 
     # Get the user state and print out position information
-    user_state = info.user_state(address)
+    user_state = await info.user_state(address)
     positions = []
     for position in user_state["assetPositions"]:
         positions.append(position["position"])
@@ -21,23 +23,23 @@ def main():
         print("no open positions")
 
     # Place an order that should rest by setting the price very low
-    order_result = exchange.order("ETH", True, 0.2, 1100, {"limit": {"tif": "Gtc"}})
+    order_result = await exchange.order("ETH", True, 0.2, 1100, {"limit": {"tif": "Gtc"}})
     print(order_result)
 
     # Query the order status by oid
     if order_result["status"] == "ok":
         status = order_result["response"]["data"]["statuses"][0]
         if "resting" in status:
-            order_status = info.query_order_by_oid(address, status["resting"]["oid"])
+            order_status = await info.query_order_by_oid(address, status["resting"]["oid"])
             print("Order status by oid:", order_status)
 
     # Cancel the order
     if order_result["status"] == "ok":
         status = order_result["response"]["data"]["statuses"][0]
         if "resting" in status:
-            cancel_result = exchange.cancel("ETH", status["resting"]["oid"])
+            cancel_result = await exchange.cancel("ETH", status["resting"]["oid"])
             print(cancel_result)
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

@@ -1,3 +1,5 @@
+import asyncio
+
 # Example script to for deploying a perp dex
 #
 # IMPORTANT: Replace any arguments for the exchange calls below to match your deployment requirements.
@@ -12,11 +14,11 @@ REGISTER_PERP_DEX = False
 DUMMY_DEX = "test"
 
 
-def main():
-    address, info, exchange = example_utils.setup(constants.TESTNET_API_URL, skip_ws=True)
+async def main():
+    address, info, exchange = await example_utils.setup(constants.TESTNET_API_URL, skip_ws=True)
 
     # get perp deploy auction status which includes auction start and gas information
-    perp_deploy_auction_status = info.query_perp_deploy_auction_status()
+    perp_deploy_auction_status = await info.query_perp_deploy_auction_status()
     print("perp deploy auction status:", perp_deploy_auction_status)
 
     # Step 1: Registering a Perp Dex and Assets
@@ -31,7 +33,7 @@ def main():
             "collateralToken": 0,
             "oracleUpdater": address,
         }
-    register_asset_result = exchange.perp_deploy_register_asset(
+    register_asset_result = await exchange.perp_deploy_register_asset(
         dex=DUMMY_DEX,
         max_gas=1000000000000,
         coin=f"{DUMMY_DEX}:TEST0",
@@ -48,7 +50,7 @@ def main():
     # Step 2: Set the Oracle Prices
     #
     # Oracle updates can be sent multiple times
-    set_oracle_result = exchange.perp_deploy_set_oracle(
+    set_oracle_result = await exchange.perp_deploy_set_oracle(
         DUMMY_DEX,
         {
             f"{DUMMY_DEX}:TEST0": "12.0",
@@ -68,8 +70,8 @@ def main():
     print("set oracle result:", set_oracle_result)
 
     # get DUMMY_DEX meta
-    print("dummy dex meta:", info.meta(dex=DUMMY_DEX))
+    print("dummy dex meta:", await info.meta(dex=DUMMY_DEX))
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

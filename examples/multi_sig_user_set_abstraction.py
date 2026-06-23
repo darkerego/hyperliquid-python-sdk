@@ -1,3 +1,5 @@
+import asyncio
+
 import example_utils
 
 from hyperliquid.utils import constants
@@ -8,8 +10,8 @@ from hyperliquid.utils.signing import (
 )
 
 
-def main():
-    address, info, exchange = example_utils.setup(constants.TESTNET_API_URL, skip_ws=True)
+async def main():
+    address, info, exchange = await example_utils.setup(constants.TESTNET_API_URL, skip_ws=True)
     multi_sig_wallets = example_utils.setup_multi_sig_wallets()
 
     # The outer signer is required to be an authorized user or an agent of an authorized user of the multi-sig user.
@@ -49,11 +51,11 @@ def main():
         )
         signatures.append(signature)
 
-    print("current user abstraction state:", info.query_user_abstraction_state(target_user))
-    multi_sig_result = exchange.multi_sig(multi_sig_user, action, signatures, timestamp)
+    print("current user abstraction state:", await info.query_user_abstraction_state(target_user))
+    multi_sig_result = await exchange.multi_sig(multi_sig_user, action, signatures, timestamp)
     print("multi-sig userSetAbstraction result:", multi_sig_result)
-    print("updated user abstraction state:", info.query_user_abstraction_state(target_user))
+    print("updated user abstraction state:", await info.query_user_abstraction_state(target_user))
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

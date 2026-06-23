@@ -1,10 +1,12 @@
+import asyncio
+
 import example_utils
 
 from hyperliquid.utils import constants
 
 
-def main():
-    address, info, exchange = example_utils.setup(constants.TESTNET_API_URL, skip_ws=True)
+async def main():
+    address, info, exchange = await example_utils.setup(constants.TESTNET_API_URL, skip_ws=True)
 
     if exchange.account_address != exchange.wallet.address:
         raise Exception("Agents do not have permission to convert to multi-sig user")
@@ -16,9 +18,9 @@ def main():
     authorized_user_1 = "0x0000000000000000000000000000000000000000"
     authorized_user_2 = "0x0000000000000000000000000000000000000001"
     threshold = 1
-    convert_result = exchange.convert_to_multi_sig_user([authorized_user_1, authorized_user_2], threshold)
+    convert_result = await exchange.convert_to_multi_sig_user([authorized_user_1, authorized_user_2], threshold)
     print(convert_result)
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

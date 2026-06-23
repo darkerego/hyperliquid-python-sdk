@@ -1,8 +1,8 @@
+import asyncio
+
 # This is an end to end example of a very basic adding strategy.
 import json
 import logging
-import threading
-import time
 
 import example_utils
 
@@ -76,34 +76,40 @@ class BasicAdder:
         self.info = info
         self.exchange = exchange
         self.address = address
+        self.loop = asyncio.get_running_loop()
         self.position: Optional[float] = None
         self.provide_state: Dict[Side, ProvideState] = {
             "A": {"type": "cancelled"},
             "B": {"type": "cancelled"},
         }
         self.recently_cancelled_oid_to_time: Dict[int, int] = {}
+        self.poller: Optional[asyncio.Task] = None
 
-        # Subscribe to updates
-        self.subscribe_to_updates()
+    @classmethod
+    async def create(cls, address: str, info: Info, exchange: Exchange) -> "BasicAdder":
+        adder = cls(address, info, exchange)
+        await adder.subscribe_to_updates()
+        await adder.refresh_position()
+        adder.start_poller()
+        return adder
 
-        # Start the polling thread
-        self.start_poller()
-
-    def subscribe_to_updates(self) -> None:
+    async def subscribe_to_updates(self) -> None:
         """Subscribe to order book and user event updates."""
         l2_book_subscription: L2BookSubscription = {"type": "l2Book", "coin": COIN}
-        self.info.subscribe(l2_book_subscription, self.on_book_update)
+        await self.info.subscribe(l2_book_subscription, self.on_book_update)
 
         user_events_subscription: UserEventsSubscription = {"type": "userEvents", "user": self.address}
-        self.info.subscribe(user_events_subscription, self.on_user_events)
+        await self.info.subscribe(user_events_subscription, self.on_user_events)
 
     def start_poller(self) -> None:
-        """Start the polling thread for checking open orders and positions."""
-        self.poller = threading.Thread(target=self.poll, daemon=True)
-        self.poller.start()
+        """Start the polling task for checking open orders and positions."""
+        self.poller = self.loop.create_task(self.poll())
 
     def on_book_update(self, book_msg: L2BookMsg) -> None:
         """Callback for order book updates."""
+        self.loop.create_task(self.handle_book_update(book_msg))
+
+    async def handle_book_update(self, book_msg: L2BookMsg) -> None:
         logging.debug(f"Received book message: {book_msg}")
         book_data = book_msg["data"]
 
@@ -112,9 +118,9 @@ class BasicAdder:
             return
 
         for side in SIDES:
-            self.handle_order_placement(side, book_data)
+            await self.handle_order_placement(side, book_data)
 
-    def handle_order_placement(self, side: Side, book_data: L2BookData) -> None:
+    async def handle_order_placement(self, side: Side, book_data: L2BookData) -> None:
         """Handle the placement and cancellation of orders based on the order book update."""
         book_price = float(book_data["levels"][side_to_uint(side)][0]["px"])
         ideal_distance = book_price * DEPTH
@@ -123,20 +129,22 @@ class BasicAdder:
         provide_state = self.provide_state[side]
 
         if provide_state["type"] == "resting":
-            self.maybe_cancel_order(side, provide_state, ideal_price, ideal_distance)
+            await self.maybe_cancel_order(side, provide_state, ideal_price, ideal_distance)
         elif provide_state["type"] == "in_flight_order":
             self.check_in_flight_order(side, provide_state)
 
         if provide_state["type"] == "cancelled":
-            self.place_new_order(side, ideal_price)
+            await self.place_new_order(side, ideal_price)
 
-    def maybe_cancel_order(self, side: Side, provide_state: Resting, ideal_price: float, ideal_distance: float) -> None:
+    async def maybe_cancel_order(
+        self, side: Side, provide_state: Resting, ideal_price: float, ideal_distance: float
+    ) -> None:
         """Cancel the order if it deviates beyond the allowable limit."""
         distance = abs(ideal_price - provide_state["px"])
         if distance > ALLOWABLE_DEVIATION * ideal_distance:
             oid = provide_state["oid"]
             print(f"Cancelling order due to deviation: oid:{oid}, side:{side}, ideal_price:{ideal_price}")
-            response = self.exchange.cancel(COIN, oid)
+            response = await self.exchange.cancel(COIN, oid)
             if response["status"] == "ok":
                 self.recently_cancelled_oid_to_time[oid] = get_timestamp_ms()
                 self.provide_state[side] = {"type": "cancelled"}
@@ -149,7 +157,7 @@ class BasicAdder:
             print("Order is still in flight after timeout, treating as cancelled.")
             self.provide_state[side] = {"type": "cancelled"}
 
-    def place_new_order(self, side: Side, ideal_price: float) -> None:
+    async def place_new_order(self, side: Side, ideal_price: float) -> None:
         """Place a new order if conditions are met."""
         if self.position is None:
             logging.debug("Waiting for position refresh before placing order.")
@@ -162,7 +170,7 @@ class BasicAdder:
 
         px = float(f"{ideal_price:.5g}")
         print(f"Placing order: size:{size}, price:{px}, side:{side}")
-        response = self.exchange.order(COIN, side == "B", size, px, {"limit": {"tif": "Alo"}})
+        response = await self.exchange.order(COIN, side == "B", size, px, {"limit": {"tif": "Alo"}})
         if response["status"] == "ok":
             status = response["response"]["data"]["statuses"][0]
             if "resting" in status:
@@ -180,11 +188,11 @@ class BasicAdder:
         # to make the example simpler
         self.position = None
 
-    def poll(self) -> None:
+    async def poll(self) -> None:
         """Poll open orders and user positions periodically."""
         while True:
             # Fetch open orders
-            open_orders = self.info.open_orders(self.exchange.wallet.address)
+            open_orders = await self.info.open_orders(self.exchange.wallet.address)
             print("open_orders", open_orders)
 
             # Collect valid order IDs (from recently cancelled orders and resting orders)
@@ -197,7 +205,7 @@ class BasicAdder:
             for open_order in open_orders:
                 if open_order["coin"] == COIN and open_order["oid"] not in ok_oids:
                     print("Cancelling unknown oid", open_order["oid"])
-                    self.exchange.cancel(open_order["coin"], open_order["oid"])
+                    await self.exchange.cancel(open_order["coin"], open_order["oid"])
 
             # Clean up recently cancelled orders after a timeout
             current_time = get_timestamp_ms()
@@ -206,12 +214,12 @@ class BasicAdder:
                 for oid, timestamp in self.recently_cancelled_oid_to_time.items()
                 if current_time - timestamp <= CANCEL_CLEANUP_TIME
             }
-            self.refresh_position()
-            time.sleep(POLL_INTERVAL)
+            await self.refresh_position()
+            await asyncio.sleep(POLL_INTERVAL)
 
-    def refresh_position(self) -> None:
+    async def refresh_position(self) -> None:
         """Refresh the user’s current position."""
-        user_state = self.info.user_state(self.address)
+        user_state = await self.info.user_state(self.address)
         for position in user_state.get("assetPositions", []):
             if position["position"]["coin"] == COIN:
                 self.position = float(position["position"]["szi"])
@@ -219,12 +227,13 @@ class BasicAdder:
         self.position = 0.0
 
 
-def main():
+async def main():
     # Setting this to logging.DEBUG can be helpful for debugging websocket callback issues
     logging.basicConfig(level=logging.INFO)
-    address, info, exchange = example_utils.setup(constants.TESTNET_API_URL)
-    BasicAdder(address, info, exchange)
+    address, info, exchange = await example_utils.setup(constants.TESTNET_API_URL)
+    await BasicAdder.create(address, info, exchange)
+    await asyncio.Event().wait()
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
